@@ -1,0 +1,7 @@
+*~
+/.settings
+/Debug
+/autom4te.cache
+/.autotools
+/.cproject
+/.project

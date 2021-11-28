@@ -1,0 +1,2 @@
+bin_PROGRAMS = restrictedusermanager
+restrictedusermanager_SOURCES = restrictedusermanager.cpp

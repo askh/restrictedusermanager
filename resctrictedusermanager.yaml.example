@@ -1,0 +1,18 @@
+options:
+    max_name_length: 25
+configs:
+    - www:
+        administrators:
+            users:
+                - alex
+                - john
+            groups:
+                - admins
+        name_prefix: www-data-
+        limits:
+            - max_name_length: 20
+    - ftp:
+        administrators:
+            groups:
+                - @admins
+        name_prefix: ftp-
