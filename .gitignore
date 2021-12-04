@@ -1,7 +1,12 @@
 *~
+*.o
 /.settings
 /Debug
 /autom4te.cache
 /.autotools
 /.cproject
 /.project
+/config.h
+.deps
+.libs
+/src/restrictedusermanager
