@@ -9,6 +9,7 @@
 /config.h
 /config.log
 /config.status
+/stamp-h1
 .deps
 .libs
 Makefile
