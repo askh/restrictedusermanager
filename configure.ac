@@ -19,6 +19,7 @@ AC_PROG_CXX
 # AX_BOOST_BASE([1.74], [], [AC_MSG_ERROR(Could not find the boost library)])
 BOOST_REQUIRE
 BOOST_PROGRAM_OPTIONS
+AM_GNU_GETTEXT([external])
 
 # Checks for header files.
 
@@ -26,5 +27,8 @@ BOOST_PROGRAM_OPTIONS
 
 # Checks for library functions.
 
-AC_CONFIG_FILES([Makefile src/Makefile])
+# AC_SUBST(LOCALEDIR)
+AC_DEFINE_UNQUOTED([LOCALEDIR], ["$localedir"], [Locale directory])
+
+AC_CONFIG_FILES([Makefile src/Makefile po/Makefile.in])
 AC_OUTPUT

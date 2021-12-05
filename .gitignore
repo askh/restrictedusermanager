@@ -7,6 +7,9 @@
 /.cproject
 /.project
 /config.h
+/config.log
+/config.status
 .deps
 .libs
+Makefile
 /src/restrictedusermanager
