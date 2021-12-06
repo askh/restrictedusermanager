@@ -113,15 +113,12 @@ am_restrictedusermanager_OBJECTS =  \
 	restrictedusermanager-restrictedusermanager.$(OBJEXT)
 restrictedusermanager_OBJECTS = $(am_restrictedusermanager_OBJECTS)
 am__DEPENDENCIES_1 =
-restrictedusermanager_DEPENDENCIES = $(am__DEPENDENCIES_1)
+restrictedusermanager_DEPENDENCIES = $(am__DEPENDENCIES_1) \
+	$(am__DEPENDENCIES_1)
 AM_V_lt = $(am__v_lt_@AM_V@)
 am__v_lt_ = $(am__v_lt_@AM_DEFAULT_V@)
 am__v_lt_0 = --silent
 am__v_lt_1 = 
-restrictedusermanager_LINK = $(LIBTOOL) $(AM_V_lt) --tag=CXX \
-	$(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=link $(CXXLD) \
-	$(AM_CXXFLAGS) $(CXXFLAGS) $(restrictedusermanager_LDFLAGS) \
-	$(LDFLAGS) -o $@
 AM_V_P = $(am__v_P_@AM_V@)
 am__v_P_ = $(am__v_P_@AM_DEFAULT_V@)
 am__v_P_0 = false
@@ -267,6 +264,9 @@ PACKAGE_TARNAME = @PACKAGE_TARNAME@
 PACKAGE_URL = @PACKAGE_URL@
 PACKAGE_VERSION = @PACKAGE_VERSION@
 PATH_SEPARATOR = @PATH_SEPARATOR@
+PKG_CONFIG = @PKG_CONFIG@
+PKG_CONFIG_LIBDIR = @PKG_CONFIG_LIBDIR@
+PKG_CONFIG_PATH = @PKG_CONFIG_PATH@
 POSUB = @POSUB@
 RANLIB = @RANLIB@
 SED = @SED@
@@ -278,6 +278,8 @@ VERSION = @VERSION@
 XGETTEXT = @XGETTEXT@
 XGETTEXT_015 = @XGETTEXT_015@
 XGETTEXT_EXTRA_OPTIONS = @XGETTEXT_EXTRA_OPTIONS@
+YAMLCPP_CFLAGS = @YAMLCPP_CFLAGS@
+YAMLCPP_LIBS = @YAMLCPP_LIBS@
 abs_builddir = @abs_builddir@
 abs_srcdir = @abs_srcdir@
 abs_top_builddir = @abs_top_builddir@
@@ -333,9 +335,9 @@ top_build_prefix = @top_build_prefix@
 top_builddir = @top_builddir@
 top_srcdir = @top_srcdir@
 restrictedusermanager_SOURCES = restrictedusermanager.cpp
-restrictedusermanager_CPPFLAGS = $(BOOST_CPPFLAGS)
-restrictedusermanager_LDFLAGS = $(BOOST_PROGRAM_OPTIONS_LDFLAGS)
-restrictedusermanager_LDADD = $(BOOST_PROGRAM_OPTIONS_LIBS)
+restrictedusermanager_CPPFLAGS = $(BOOST_CPPFLAGS) $(YAMLCPP_CPPFLAGS)
+# restrictedusermanager_LDFLAGS = $(BOOST_PROGRAM_OPTIONS_LDFLAGS) $(YAMLCPP_LIBS)
+restrictedusermanager_LDADD = $(BOOST_PROGRAM_OPTIONS_LIBS) $(YAMLCPP_LIBS)
 all: all-am
 
 .SUFFIXES:
@@ -421,7 +423,7 @@ clean-binPROGRAMS:
 
 restrictedusermanager$(EXEEXT): $(restrictedusermanager_OBJECTS) $(restrictedusermanager_DEPENDENCIES) $(EXTRA_restrictedusermanager_DEPENDENCIES) 
 	@rm -f restrictedusermanager$(EXEEXT)
-	$(AM_V_CXXLD)$(restrictedusermanager_LINK) $(restrictedusermanager_OBJECTS) $(restrictedusermanager_LDADD) $(LIBS)
+	$(AM_V_CXXLD)$(CXXLINK) $(restrictedusermanager_OBJECTS) $(restrictedusermanager_LDADD) $(LIBS)
 
 mostlyclean-compile:
 	-rm -f *.$(OBJEXT)

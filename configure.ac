@@ -16,12 +16,12 @@ LT_INIT
 AC_PROG_CXX
 
 # Checks for libraries.
-# AX_BOOST_BASE([1.74], [], [AC_MSG_ERROR(Could not find the boost library)])
 BOOST_REQUIRE
 BOOST_PROGRAM_OPTIONS
 AM_GNU_GETTEXT([external])
 
 # Checks for header files.
+PKG_CHECK_MODULES([YAMLCPP], [yaml-cpp])
 
 # Checks for typedefs, structures, and compiler characteristics.
 
