@@ -79,11 +79,13 @@ public:
 class Config {
 public:
 	Config(const YAML::Node &node);
-	const ConfigSection &get_coinfig_section(std::string prefix);
+	const ConfigSection &get_coinfig_section(const std::string &prefix);
+	static const std::string CONFIG_DEFAULTS = "defaults";
+	static const std::string CONFIG_CONFIGS = "configs";
 private:
-	boost::optional<ConfigSection> defaulta;
-	std::map<std::string, ConfigSection> sections;
-	void parse_config_section(const YAML::Node &node);
+	ConfigSection defaults;
+	std::vector<ConfigSection> sections;
+	ConfigSection parse_config_section(const YAML::Node &node, bool parse_defaults = false);
 };
 
 User User::get_current_user() {
@@ -127,6 +129,22 @@ User User::get_current_user() {
     	}
     }
     return result_user;
+}
+
+Config::Config(const YAML::Node &node) {
+	if(node[CONFIG_DEFAULTS]) {
+		this->defaults = parse_config_section(node[CONFIG_DEFAULTS], true);
+	}
+	if(node[CONFIG_CONFIGS]) {
+		YAML::Node configs = node[CONFIG_CONFIGS];
+		for(YAML::const_iterator iter = configs.begin(); iter != configs.end(); ++iter) {
+			this->sections.push_back(parse_config_section(*iter));
+		}
+	}
+}
+
+ConfigSection Config::parse_config_section(const YAML::Node &node, bool parse_defaults = false) {
+
 }
 
 const std::string CONFIG_FILE_NAME = "restrictedusermanager.cpp";

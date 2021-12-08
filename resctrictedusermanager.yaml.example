@@ -1,17 +1,18 @@
-default_config:
+defaults:
     max_name_length: 25
     home_dir: "/home"
+    name_prefix: ""
 configs:
     - administrators:
-      users:
-          - alex
-          - john
-      groups:
-          - admins
+          users:
+              - alex
+              - john
+          groups:
+              - admins
       name_prefix: www-data-
       home_dir: "/var/local/home-www"
       max_name_length: 20
     - administrators:
-      groups:
-          - admins
+          groups:
+              - admins
       name_prefix: ftp-
