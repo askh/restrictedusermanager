@@ -9,6 +9,8 @@ AC_CONFIG_SRCDIR([src/restrictedusermanager.cpp])
 AC_CONFIG_HEADERS([config.h])
 AC_CONFIG_MACRO_DIRS([m4])
 
+AX_CXX_COMPILE_STDCXX([17], [ext], [mandatory])
+
 # AC_PROG_LIBTOOL
 LT_INIT
 
@@ -17,6 +19,10 @@ AC_PROG_CXX
 
 # Checks for libraries.
 BOOST_REQUIRE
+BOOST_IOSTREAMS
+BOOST_LOG
+BOOST_LOG_SETUP
+BOOST_OPTIONAL
 BOOST_PROGRAM_OPTIONS
 AM_GNU_GETTEXT([external])
 
@@ -29,6 +35,8 @@ PKG_CHECK_MODULES([YAMLCPP], [yaml-cpp])
 
 # AC_SUBST(LOCALEDIR)
 AC_DEFINE_UNQUOTED([LOCALEDIR], ["$localedir"], [Locale directory])
+# AC_DEFINE([BOOST_LOG_DYN_LINK], [1], [Option for boost])
+# AC_DEFINE([BOOST_ALL_DYN_LINK], [1], [Option for boost])
 
 AC_CONFIG_FILES([Makefile src/Makefile po/Makefile.in])
 AC_OUTPUT

@@ -7,11 +7,50 @@
 /* Defined if the requested minimum BOOST version is satisfied */
 #undef HAVE_BOOST
 
+/* Defined if the Boost date_time library is available */
+#undef HAVE_BOOST_DATE_TIME
+
+/* Define to 1 if you have <boost/date_time/posix_time/posix_time.hpp> */
+#undef HAVE_BOOST_DATE_TIME_POSIX_TIME_POSIX_TIME_HPP
+
+/* Defined if the Boost filesystem library is available */
+#undef HAVE_BOOST_FILESYSTEM
+
+/* Define to 1 if you have <boost/filesystem/path.hpp> */
+#undef HAVE_BOOST_FILESYSTEM_PATH_HPP
+
+/* Defined if the Boost iostreams library is available */
+#undef HAVE_BOOST_IOSTREAMS
+
+/* Define to 1 if you have <boost/iostreams/device/file_descriptor.hpp> */
+#undef HAVE_BOOST_IOSTREAMS_DEVICE_FILE_DESCRIPTOR_HPP
+
+/* Defined if the Boost log library is available */
+#undef HAVE_BOOST_LOG
+
+/* Define to 1 if you have <boost/log/core/core.hpp> */
+#undef HAVE_BOOST_LOG_CORE_CORE_HPP
+
+/* Defined if the Boost log_setup library is available */
+#undef HAVE_BOOST_LOG_SETUP
+
+/* Define to 1 if you have <boost/log/utility/setup/from_settings.hpp> */
+#undef HAVE_BOOST_LOG_UTILITY_SETUP_FROM_SETTINGS_HPP
+
+/* Define to 1 if you have <boost/optional.hpp> */
+#undef HAVE_BOOST_OPTIONAL_HPP
+
 /* Defined if the Boost program_options library is available */
 #undef HAVE_BOOST_PROGRAM_OPTIONS
 
 /* Define to 1 if you have <boost/program_options.hpp> */
 #undef HAVE_BOOST_PROGRAM_OPTIONS_HPP
+
+/* Defined if the Boost system library is available */
+#undef HAVE_BOOST_SYSTEM
+
+/* Define to 1 if you have <boost/system/error_code.hpp> */
+#undef HAVE_BOOST_SYSTEM_ERROR_CODE_HPP
 
 /* Define to 1 if you have the Mac OS X function
    CFLocaleCopyPreferredLanguages in the CoreFoundation framework. */
@@ -20,6 +59,9 @@
 /* Define to 1 if you have the Mac OS X function CFPreferencesCopyAppValue in
    the CoreFoundation framework. */
 #undef HAVE_CFPREFERENCESCOPYAPPVALUE
+
+/* define if the compiler supports basic C++17 syntax */
+#undef HAVE_CXX17
 
 /* Define if the GNU dcgettext() function is already present or preinstalled.
    */
