@@ -29,6 +29,12 @@
 namespace po = boost::program_options;
 namespace logging = boost::log;
 
+using std::list;
+using std::map;
+using std::set;
+using std::string;
+using std::vector;
+
 class UserException : public std::runtime_error {
 public:
     UserException(const std::string &what) : std::runtime_error(what) { }
@@ -57,7 +63,7 @@ public:
     std::set<std::string> groups;
     std::string name_prefix;
     std::string home_dir;
-    unsigned int max_name_length = -1;
+    int max_name_length = -1;
 
     ConfigSection() {
     }
@@ -66,26 +72,15 @@ public:
         this->name_prefix = defaults.name_prefix;
         this->home_dir = defaults.home_dir;
         this->max_name_length = defaults.max_name_length;
+        this->users = defaults.users;
+        this->groups = defaults.groups;
     }
-
-    /*
-    void add_defaults(const ConfigSection &defaults) {
-        if(this->name_prefix.empty()) {
-            this->name_prefix = defaults.name_prefix;
-        }
-        if(this->home_dir.empty()) {
-            this->home_dir = defaults.home_dir;
-        }
-        if(this->max_name_length < 0) {
-            this->max_name_length = defaults.max_name_length;
-        }
-    }
-    */
 
 };
 
 class Config {
 public:
+    Config() { }
     Config (const YAML::Node &node);
     const ConfigSection&
     get_coinfig_section (const std::string &prefix);
@@ -96,6 +91,7 @@ public:
     inline static const std::string CONFIG_GROUPS = "groups";
     inline static const std::string CONFIG_NAME_PREFIX = "name_prefox";
     inline static const std::string CONFIG_HOME_DIR = "home_dir";
+    inline static const std::string CONFIG_MAX_NAME_LENGTH = "max_name_length";
     inline static const int DEFAULT_MAX_NAME_LENGTH = 25;
     inline static const std::string DEFAULT_HOME_DIR = "/home";
     inline static const std::string DEFAULT_NAME_PREFIX = "";
@@ -169,69 +165,56 @@ Config::Config(const YAML::Node &node) {
     }
 }
 
-template <typename T> class ConfigSectionField {
-public:
-    std::string name;
-    T ConfigSection::* field;
-    ConfigSectionField(const std::string &name, T ConfigSection::* field) :
-        name(name), field(field) { }
-};
-
 ConfigSection Config::parse_config_section(const YAML::Node &node,
                                            bool parse_defaults) {
-
     ConfigSection section;
-    ConfigSectionField<std::set<std::string>> acl_fields[] = {
-        ConfigSectionField<std::set<std::string>>(CONFIG_USERS,
-                &ConfigSection::users),
-        ConfigSectionField<std::set<std::string>>(CONFIG_GROUPS,
-                &ConfigSection::groups)
-    };
-    const size_t acl_fields_count =
-            sizeof(acl_fields) /
-            sizeof(ConfigSectionField<std::set<std::string>>);
+
     if(!parse_defaults) {
         section.use_defaults(this->defaults);
     }
+
     bool with_administrators = false;
+
+    map<string, set<string> ConfigSection::*> acl_fields {
+        {CONFIG_USERS, &ConfigSection::users},
+        {CONFIG_GROUPS, &ConfigSection::groups}
+    };
     if (node[CONFIG_ADMINISTRATORS]) {
         YAML::Node administrators = node[CONFIG_ADMINISTRATORS];
-        for (size_t acl_field_idx = 0; acl_field_idx < acl_fields_count;
-                ++acl_field_idx) {
-            const std::string field_name = acl_fields[acl_field_idx].name;
-            std::set<std::string> ConfigSection::*field =
-                    acl_fields[acl_field_idx].field;
+        for (const auto& [field_name, field] : acl_fields) {
             if (administrators[field_name]) {
+                (section.*field).clear();
                 YAML::Node acl_node = administrators[field_name];
                 for (YAML::const_iterator acl_iter = acl_node.begin ();
                         acl_iter != acl_node.end (); ++acl_iter) {
-
-                    std::string acl_element_name = acl_iter->as<std::string>();
-                    (section.*field).insert (acl_element_name);
+                    std::string acl_element_name = acl_iter->as<string>();
+                    (section.*field).insert(acl_element_name);
+                    with_administrators = true;
                 }
             }
         }
     }
 
-    ConfigSectionField<std::string> string_fields[] = {
-        ConfigSectionField<std::string>(CONFIG_NAME_PREFIX,
-                                        &ConfigSection::name_prefix),
-        ConfigSectionField<std::string>(CONFIG_HOME_DIR,
-                                        &ConfigSection::home_dir)
+    map<string, string ConfigSection::*> string_fields {
+        { CONFIG_NAME_PREFIX, &ConfigSection::name_prefix },
+        { CONFIG_HOME_DIR, &ConfigSection::home_dir }
     };
-    const size_t string_field_count =
-            sizeof(string_fields) / sizeof(std::string);
-    for(size_t string_field_idx = 0;
-            string_field_idx < string_field_count; ++string_field_idx) {
-
-
-
+    for(const auto& [field_name, field] : string_fields) {
+        if(node[field_name]) {
+            YAML::Node string_node = node[field_name];
+            section.*field = node[field_name].as<string>();
+        }
     }
 
-    if(!parse_defaults && !with_administrators) {
-        BOOST_LOG_TRIVIAL(debug) << "Config section without administrators";
+    map<string, int ConfigSection::*> int_fields {
+        { CONFIG_MAX_NAME_LENGTH, &ConfigSection::max_name_length }
+    };
+    for(const auto& [field_name, field] : int_fields) {
+        if(node[field_name]) {
+            YAML::Node int_node = node[field_name];
+            section.*field = node[field_name].as<int>();
+        }
     }
-
 
     return section;
 }
@@ -240,6 +223,8 @@ const std::string CONFIG_FILE_NAME = "restrictedusermanager.cpp";
 const std::string CONFIG_DIRS[] = {"/usr/local/etc", "/etc"};
 
 bool simulation_mode = true;
+
+Config config;
 
 boost::optional<YAML::Node>
 load_config()
@@ -280,7 +265,7 @@ load_config()
 }
 
 void set_config(const YAML::Node &node) {
-
+    config = Config(node);
 }
 
 void add_user(const std::string &user_name) {

@@ -28,6 +28,7 @@ AM_GNU_GETTEXT([external])
 
 # Checks for header files.
 PKG_CHECK_MODULES([YAMLCPP], [yaml-cpp])
+AC_CHECK_HEADER([errno.h])
 
 # Checks for typedefs, structures, and compiler characteristics.
 
