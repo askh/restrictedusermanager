@@ -1,6 +1,9 @@
+options:
+    user_add:
+        application: /usr/bin/useradd
 defaults:
     max_name_length: 25
-    home_dir: "/home"
+    base_dir: /home
     name_prefix: ""
 configs:
     - administrators:
@@ -10,7 +13,7 @@ configs:
           groups:
               - admins
       name_prefix: www-data-
-      home_dir: "/var/local/home-www"
+      base_dir: /var/local/home-www
       max_name_length: 20
     - administrators:
           groups:

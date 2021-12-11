@@ -6,11 +6,14 @@
 #include <locale>
 #include <optional>
 #include <pwd.h>
+#include <regex>
 #include <set>
 #include <stdint.h>
 #include <stdlib.h>
+#include <stdio.h>
 #include <string>
 #include <sys/types.h>
+#include <sys/wait.h>
 #include <unistd.h>
 #include <vector>
 #include <boost/log/core.hpp>
@@ -31,6 +34,7 @@ namespace logging = boost::log;
 
 using std::list;
 using std::map;
+using std::regex;
 using std::set;
 using std::string;
 using std::vector;
@@ -44,6 +48,12 @@ class ConfigException : public std::runtime_error {
 public:
     ConfigException(const std::string &what) : std::runtime_error(what) { }
 };
+
+class SubprocessException : public std::runtime_error {
+public:
+    SubprocessException(const std::string &what) : std::runtime_error(what) { }
+};
+
 
 class User {
 public:
@@ -59,10 +69,10 @@ public:
 
 class ConfigSection {
 public:
-    std::set<std::string> users;
-    std::set<std::string> groups;
+    std::set<std::string> admin_users;
+    std::set<std::string> admin_groups;
     std::string name_prefix;
-    std::string home_dir;
+    std::string base_dir;
     int max_name_length = -1;
 
     ConfigSection() {
@@ -70,12 +80,17 @@ public:
 
     void use_defaults(const ConfigSection &defaults) {
         this->name_prefix = defaults.name_prefix;
-        this->home_dir = defaults.home_dir;
+        this->base_dir = defaults.base_dir;
         this->max_name_length = defaults.max_name_length;
-        this->users = defaults.users;
-        this->groups = defaults.groups;
+        this->admin_users = defaults.admin_users;
+        this->admin_groups = defaults.admin_groups;
     }
 
+};
+
+class ConfigOptions {
+public:
+    string user_add_application;
 };
 
 class Config {
@@ -84,18 +99,23 @@ public:
     Config (const YAML::Node &node);
     const ConfigSection&
     get_coinfig_section (const std::string &prefix);
-    inline static const std::string CONFIG_DEFAULTS = "defaults";
-    inline static const std::string CONFIG_CONFIGS = "configs";
-    inline static const std::string CONFIG_ADMINISTRATORS = "administrators";
-    inline static const std::string CONFIG_USERS = "users";
-    inline static const std::string CONFIG_GROUPS = "groups";
-    inline static const std::string CONFIG_NAME_PREFIX = "name_prefox";
-    inline static const std::string CONFIG_HOME_DIR = "home_dir";
-    inline static const std::string CONFIG_MAX_NAME_LENGTH = "max_name_length";
+    inline static const string CONFIG_OPTIONS = "options";
+    inline static const string CONFIG_USER_ADD = "user_add";
+    inline static const string CONFIG_APPLICATION = "application";
+    inline static const string CONFIG_DEFAULTS = "defaults";
+    inline static const string CONFIG_CONFIGS = "configs";
+    inline static const string CONFIG_ADMINISTRATORS = "administrators";
+    inline static const string CONFIG_USERS = "users";
+    inline static const string CONFIG_GROUPS = "groups";
+    inline static const string CONFIG_NAME_PREFIX = "name_prefox";
+    inline static const string CONFIG_BASE_DIR = "base_dir";
+    inline static const string CONFIG_MAX_NAME_LENGTH = "max_name_length";
     inline static const int DEFAULT_MAX_NAME_LENGTH = 25;
-    inline static const std::string DEFAULT_HOME_DIR = "/home";
-    inline static const std::string DEFAULT_NAME_PREFIX = "";
+    inline static const string DEFAULT_BASE_DIR = "/home";
+    inline static const string DEFAULT_NAME_PREFIX = "";
+    inline static const string DEFAULT_USER_ADD_APPLICATION = "/usr/bin/useradd";
 private:
+    ConfigOptions options;
     ConfigSection defaults;
     std::vector<ConfigSection> sections;
 
@@ -149,9 +169,22 @@ User User::get_current_user() {
 
 Config::Config(const YAML::Node &node) {
 
-    this->defaults.home_dir = DEFAULT_HOME_DIR;
+    this->defaults.base_dir = DEFAULT_BASE_DIR;
     this->defaults.max_name_length = DEFAULT_MAX_NAME_LENGTH;
     this->defaults.name_prefix = DEFAULT_NAME_PREFIX;
+
+    bool have_user_add_application = false;
+    if(node[CONFIG_OPTIONS] and node[CONFIG_OPTIONS][CONFIG_USER_ADD]) {
+        YAML::Node user_add_node = node[CONFIG_OPTIONS][CONFIG_USER_ADD];
+        if(user_add_node[CONFIG_APPLICATION]) {
+            this->options.user_add_application =
+                    user_add_node[CONFIG_APPLICATION].as<string>();
+            have_user_add_application = true;
+        }
+    }
+    if(!have_user_add_application) {
+        this->options.user_add_application = DEFAULT_USER_ADD_APPLICATION;
+    }
 
     if(node[CONFIG_DEFAULTS]) {
         this->defaults = parse_config_section(node[CONFIG_DEFAULTS], true);
@@ -176,8 +209,8 @@ ConfigSection Config::parse_config_section(const YAML::Node &node,
     bool with_administrators = false;
 
     map<string, set<string> ConfigSection::*> acl_fields {
-        {CONFIG_USERS, &ConfigSection::users},
-        {CONFIG_GROUPS, &ConfigSection::groups}
+        {CONFIG_USERS, &ConfigSection::admin_users},
+        {CONFIG_GROUPS, &ConfigSection::admin_groups}
     };
     if (node[CONFIG_ADMINISTRATORS]) {
         YAML::Node administrators = node[CONFIG_ADMINISTRATORS];
@@ -197,7 +230,7 @@ ConfigSection Config::parse_config_section(const YAML::Node &node,
 
     map<string, string ConfigSection::*> string_fields {
         { CONFIG_NAME_PREFIX, &ConfigSection::name_prefix },
-        { CONFIG_HOME_DIR, &ConfigSection::home_dir }
+        { CONFIG_BASE_DIR, &ConfigSection::base_dir }
     };
     for(const auto& [field_name, field] : string_fields) {
         if(node[field_name]) {
@@ -219,8 +252,9 @@ ConfigSection Config::parse_config_section(const YAML::Node &node,
     return section;
 }
 
-const std::string CONFIG_FILE_NAME = "restrictedusermanager.cpp";
-const std::string CONFIG_DIRS[] = {"/usr/local/etc", "/etc"};
+const string CONFIG_FILE_NAME = "restrictedusermanager.cpp";
+const string CONFIG_DIRS[] = {"/usr/local/etc", "/etc"};
+const auto RE_USER_NAME = std::regex("^[a-z][0-9a-z_-]+$");
 
 bool simulation_mode = true;
 
@@ -268,8 +302,46 @@ void set_config(const YAML::Node &node) {
     config = Config(node);
 }
 
-void add_user(const std::string &user_name) {
+bool
+is_valid_user_name(const string &user_name)
+{
+    return regex_match(user_name, RE_USER_NAME);
+}
+
+vector<string>
+user_add_options(const string &user_name, const string &base_dir = Config::DEFAULT_BASE_DIR)
+{
+    return vector<string> { "-b", base_dir, user_name };
+}
+
+
+void
+run_user_add(const string &user_name) {
+    pid_t pid = fork();
+    if(pid < 0) {
+        throw SubprocessException("Can't call fork().");
+    } else if(pid == 0) {
+        string user_add_app = config.options.user_add_application;
+
+
+        _exit(EXIT_SUCCESS);
+    } else {
+        int wstatus;
+        pid_t wait_pid = waitpid(pid, &wstatus, 0);
+        if(WIFEXITED(wstatus) and WEXITSTATUS(wstatus) == EXIT_SUCCESS) {
+            BOOST_LOG_TRIVIAL(debug) <<
+                    "Subprocess for user adding was exiting successfully."; // TODO check
+        } else {
+            throw SubprocessException("Subprocess for user adding was exited with error"); // TODO check
+        }
+    }
+}
+
+bool add_user(const std::string &user_name) {
     BOOST_LOG_TRIVIAL(debug) << "Add user " << user_name;
+    if(!is_valid_user_name(user_name)) {
+        BOOST_LOG_TRIVIAL(error) << "The username " << user_name << " is not valid.";
+    }
     User current_user = User::get_current_user();
 
 
