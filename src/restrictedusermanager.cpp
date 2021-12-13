@@ -1,7 +1,9 @@
+#include <cstring>
 #include <errno.h>
 #include <exception>
 #include <grp.h>
 #include <iostream>
+#include <filesystem>
 #include <fstream>
 #include <locale>
 #include <optional>
@@ -15,7 +17,6 @@
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <unistd.h>
-#include <vector>
 #include <boost/log/core.hpp>
 #include <boost/log/expressions.hpp>
 #include <boost/log/trivial.hpp>
@@ -29,6 +30,7 @@
 
 #define _(string) gettext(string)
 
+namespace fs = std::filesystem; // @suppress("Symbol is not resolved")
 namespace po = boost::program_options;
 namespace logging = boost::log;
 
@@ -95,10 +97,15 @@ public:
 
 class Config {
 public:
+    ConfigOptions options;
+    ConfigSection defaults;
+    std::vector<ConfigSection> sections;
     Config() { }
     Config (const YAML::Node &node);
+
     const ConfigSection&
     get_coinfig_section (const std::string &prefix);
+
     inline static const string CONFIG_OPTIONS = "options";
     inline static const string CONFIG_USER_ADD = "user_add";
     inline static const string CONFIG_APPLICATION = "application";
@@ -115,10 +122,6 @@ public:
     inline static const string DEFAULT_NAME_PREFIX = "";
     inline static const string DEFAULT_USER_ADD_APPLICATION = "/usr/bin/useradd";
 private:
-    ConfigOptions options;
-    ConfigSection defaults;
-    std::vector<ConfigSection> sections;
-
     ConfigSection
     parse_config_section (const YAML::Node &node, bool parse_defaults = false);
 };
@@ -309,22 +312,34 @@ is_valid_user_name(const string &user_name)
 }
 
 vector<string>
-user_add_options(const string &user_name, const string &base_dir = Config::DEFAULT_BASE_DIR)
+user_add_options(const string &user_name, const string &base_dir)
 {
     return vector<string> { "-b", base_dir, user_name };
 }
 
-
 void
-run_user_add(const string &user_name) {
+run_user_add(const string &user_name, const string &base_dir = Config::DEFAULT_BASE_DIR) {
     pid_t pid = fork();
     if(pid < 0) {
         throw SubprocessException("Can't call fork().");
     } else if(pid == 0) {
         string user_add_app = config.options.user_add_application;
+        string app_filename = fs::path(user_add_app).filename(); // @suppress("Invalid arguments") // @suppress("Function cannot be resolved") // @suppress("Method cannot be resolved")
+        vector<string> proc_argv_vector { app_filename };
+        vector<string> app_options = user_add_options(user_name, base_dir);
+        proc_argv_vector.insert(proc_argv_vector.end(), app_options.begin(), app_options.end());
+        size_t arg_count = proc_argv_vector.size();
+        char *proc_argv[arg_count + 1];
+        for(size_t i = 0; i < arg_count; ++i) {
+            size_t char_count = proc_argv_vector[i].length();
+            proc_argv[i] = new char[char_count];
+            std::strcpy(proc_argv[i], proc_argv_vector[i].c_str());
+        }
+        proc_argv[arg_count] = NULL;
 
+        execv(user_add_app.c_str(), proc_argv);
 
-        _exit(EXIT_SUCCESS);
+        _exit(EXIT_FAILURE);
     } else {
         int wstatus;
         pid_t wait_pid = waitpid(pid, &wstatus, 0);
@@ -337,15 +352,67 @@ run_user_add(const string &user_name) {
     }
 }
 
-bool add_user(const std::string &user_name) {
+const ConfigSection*
+get_config_section_by_user_name(const string &user_name)
+{
+    for (size_t config_section_idx = 0;
+            config_section_idx < config.sections.size();
+            ++config_section_idx) {
+        unsigned long int prefix_size =
+                config.sections[config_section_idx].name_prefix.length();
+        if (prefix_size > user_name.length()) {
+            continue;
+        }
+        if (config.sections[config_section_idx].name_prefix.compare(
+                0, prefix_size, user_name, 0, prefix_size) == 0) {
+            return &config.sections[config_section_idx];
+        }
+    }
+    return NULL;
+}
+
+bool check_authentication(const User &user, const ConfigSection &config_section) {
+    BOOST_LOG_TRIVIAL(debug) << "Check authentication.";
+    if(config_section.admin_users.find(user.user) !=
+            config_section.admin_users.end()) {
+        BOOST_LOG_TRIVIAL(debug) << "Access accepted for user " << user.user << ".";
+        return true;
+    } else {
+        for(const auto group : user.groups) {
+            if(config_section.admin_groups.find(group) !=
+                    config_section.admin_groups.end()) {
+                BOOST_LOG_TRIVIAL(debug) <<
+                        "Access accepted for group " << group << ".";
+                return true;
+            }
+        }
+    }
+    BOOST_LOG_TRIVIAL(debug) << "Access denied.";
+    return false;
+}
+
+bool add_user(const string &user_name) {
     BOOST_LOG_TRIVIAL(debug) << "Add user " << user_name;
     if(!is_valid_user_name(user_name)) {
         BOOST_LOG_TRIVIAL(error) << "The username " << user_name << " is not valid.";
     }
     User current_user = User::get_current_user();
-
-
-
+    const ConfigSection *config_section = get_config_section_by_user_name(user_name);
+    if(config_section == NULL) {
+        BOOST_LOG_TRIVIAL(error) << "Config section for username " << user_name << " not found.";
+        return false;
+    }
+    if(!check_authentication(current_user, *config_section)) {
+        BOOST_LOG_TRIVIAL(error) << "Access denied for creating the user " << user_name << ".";
+        return false;
+    }
+    try {
+        run_user_add(user_name);
+    } catch(const SubprocessException &e) {
+        BOOST_LOG_TRIVIAL(error) << "User was not be created by the reason: " << e.what();
+        return false;
+    }
+    return true;
 }
 
 int main(int argc, char **argv) {
