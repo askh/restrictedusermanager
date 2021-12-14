@@ -10,6 +10,7 @@
 #include <pwd.h>
 #include <regex>
 #include <set>
+#include <sstream>
 #include <stdint.h>
 #include <stdlib.h>
 #include <stdio.h>
@@ -317,6 +318,24 @@ user_add_options(const string &user_name, const string &base_dir)
     return vector<string> { "-b", base_dir, user_name };
 }
 
+void log_debug_execv(const char *app, char * const proc_argv[]) {
+    std::stringstream ss;
+    ss << "Run application: " << string(app) << " with arguments: [";
+
+    bool is_not_first;
+    const char * arg_ptr;
+    for(arg_ptr = proc_argv[0], is_not_first = false;
+            arg_ptr != NULL;
+            ++arg_ptr, is_not_first = true) {
+        if(is_not_first) {
+            ss << ", ";
+        }
+        ss << string(arg_ptr);
+    }
+    ss << "]";
+    BOOST_LOG_TRIVIAL(debug) << ss.str();
+}
+
 void
 run_user_add(const string &user_name, const string &base_dir = Config::DEFAULT_BASE_DIR) {
     pid_t pid = fork();
@@ -337,7 +356,12 @@ run_user_add(const string &user_name, const string &base_dir = Config::DEFAULT_B
         }
         proc_argv[arg_count] = NULL;
 
-        execv(user_add_app.c_str(), proc_argv);
+        log_debug_execv(user_add_app.c_str(), proc_argv);
+        if(simulation_mode) {
+            BOOST_LOG_TRIVIAL(info) << "Simulation mode. The user was not be created.";
+        } else {
+            execv(user_add_app.c_str(), proc_argv);
+        }
 
         _exit(EXIT_FAILURE);
     } else {
