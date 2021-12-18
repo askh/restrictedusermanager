@@ -6,6 +6,7 @@
 #include <filesystem>
 #include <fstream>
 #include <locale>
+#include <memory>
 #include <optional>
 #include <pwd.h>
 #include <regex>
@@ -18,6 +19,7 @@
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <unistd.h>
+#include <utility>
 #include <boost/log/core.hpp>
 #include <boost/log/expressions.hpp>
 #include <boost/log/trivial.hpp>
@@ -30,39 +32,42 @@
 #include "../config.h"
 
 #define _(string) gettext(string)
+#define LOG_DEBUG_VARIABLE(variable) BOOST_LOG_TRIVIAL(debug) << #variable << "=" << (variable);
+#define VARIABLE_OUT(variable) #variable << "=" << (variable)
 
 namespace fs = std::filesystem; // @suppress("Symbol is not resolved")
 namespace po = boost::program_options;
 namespace logging = boost::log;
 
 using std::list;
+using std::runtime_error;
 using std::map;
 using std::regex;
 using std::set;
 using std::string;
 using std::vector;
 
-class UserException : public std::runtime_error {
+class UserException : public runtime_error {
 public:
-    UserException(const std::string &what) : std::runtime_error(what) { }
+    UserException(const string &what) : runtime_error(what) { }
 };
 
-class ConfigException : public std::runtime_error {
+class ConfigException : public runtime_error {
 public:
-    ConfigException(const std::string &what) : std::runtime_error(what) { }
+    ConfigException(const string &what) : runtime_error(what) { }
 };
 
-class SubprocessException : public std::runtime_error {
+class SubprocessException : public runtime_error {
 public:
-    SubprocessException(const std::string &what) : std::runtime_error(what) { }
+    SubprocessException(const string &what) : runtime_error(what) { }
 };
 
 
 class User {
 public:
-    std::string user;
-    std::set<std::string> groups;
-    User(const std::string &user, const std::set<std::string> &groups) :
+    string user;
+    set<string> groups;
+    User(const string &user, const set<string> &groups) :
         user(user), groups(groups) {
     }
     User() {
@@ -72,10 +77,10 @@ public:
 
 class ConfigSection {
 public:
-    std::set<std::string> admin_users;
-    std::set<std::string> admin_groups;
-    std::string name_prefix;
-    std::string base_dir;
+    set<string> admin_users;
+    set<string> admin_groups;
+    string name_prefix;
+    string base_dir;
     int max_name_length = -1;
 
     ConfigSection() {
@@ -100,12 +105,12 @@ class Config {
 public:
     ConfigOptions options;
     ConfigSection defaults;
-    std::vector<ConfigSection> sections;
+    vector<ConfigSection> sections;
     Config() { }
     Config (const YAML::Node &node);
 
     const ConfigSection&
-    get_coinfig_section (const std::string &prefix);
+    get_coinfig_section (const string &prefix);
 
     inline static const string CONFIG_OPTIONS = "options";
     inline static const string CONFIG_USER_ADD = "user_add";
@@ -129,42 +134,45 @@ private:
 
 User User::get_current_user() {
     char *user_name_str = getlogin();
-    if(user_name_str == NULL) {
-        std::string error_message =
+    if(user_name_str == nullptr) {
+        string error_message =
             "No user login found. errno=" +
             std::to_string(errno);
         throw UserException(error_message);
     }
-    std::string user_name(getlogin());
+    string user_name(getlogin());
     BOOST_LOG_TRIVIAL(debug) << "Current user: " << user_name;
     User result_user = User();
     result_user.user = user_name;
     uid_t user_id = getuid();
     passwd *pwd = getpwuid(user_id);
     group *gr;
-    if(pwd == NULL) {
+    if(pwd == nullptr) {
         BOOST_LOG_TRIVIAL(error) << "User group not found";
         return result_user;
     }
     gid_t group_id = pwd->pw_gid;
 
     int groups_status;
-    int ngroups = 2;
-    gid_t *groups_arr;
+    int ngroups = 1;
+    gid_t *groups_arr = new gid_t[ngroups];
     do {
-        BOOST_LOG_TRIVIAL(debug) << "ngroups=" << ngroups;
+        BOOST_LOG_TRIVIAL(debug) << "Before: " << VARIABLE_OUT(ngroups);
+        // LOG_DEBUG_VARIABLE(ngroups);
+        delete[] groups_arr;
         groups_arr = new gid_t[ngroups];
         groups_status =
             getgrouplist(user_name.c_str(), group_id, groups_arr, &ngroups);
-    } while(groups_status != -1);
-    std::set<gid_t> group_ids(groups_arr, groups_arr + ngroups);
+        BOOST_LOG_TRIVIAL(debug) << "After:" << VARIABLE_OUT(ngroups) << ", " << VARIABLE_OUT(groups_status);
+    } while(groups_status == -1);
+    set<gid_t> group_ids(groups_arr, groups_arr + ngroups);
     delete[] groups_arr;
-    for(std::set<gid_t>::iterator gr_iter = group_ids.begin();
+    for(set<gid_t>::iterator gr_iter = group_ids.begin();
         gr_iter != group_ids.end();
         ++gr_iter) {
 
         gr = getgrgid(*gr_iter);
-        if(gr != NULL) {
+        if(gr != nullptr) {
             result_user.groups.insert(gr->gr_name);
         }
     }
@@ -224,7 +232,7 @@ ConfigSection Config::parse_config_section(const YAML::Node &node,
                 YAML::Node acl_node = administrators[field_name];
                 for (YAML::const_iterator acl_iter = acl_node.begin ();
                         acl_iter != acl_node.end (); ++acl_iter) {
-                    std::string acl_element_name = acl_iter->as<string>();
+                    string acl_element_name = acl_iter->as<string>();
                     (section.*field).insert(acl_element_name);
                     with_administrators = true;
                 }
@@ -256,7 +264,7 @@ ConfigSection Config::parse_config_section(const YAML::Node &node,
     return section;
 }
 
-const string CONFIG_FILE_NAME = "restrictedusermanager.cpp";
+const string CONFIG_FILE_NAME = "restrictedusermanager.yaml";
 const string CONFIG_DIRS[] = {"/usr/local/etc", "/etc"};
 const auto RE_USER_NAME = std::regex("^[a-z][0-9a-z_-]+$");
 
@@ -269,7 +277,7 @@ load_config()
 {
     boost::optional<YAML::Node> config_node;
     BOOST_LOG_TRIVIAL(debug) << "Load configuration file";
-    std::string config_file_full_name;
+    string config_file_full_name;
     const size_t config_dir_count = sizeof(CONFIG_DIRS)
             / sizeof(CONFIG_DIRS[0]);
     bool config_found = false;
@@ -325,7 +333,7 @@ void log_debug_execv(const char *app, char * const proc_argv[]) {
     bool is_not_first;
     const char * arg_ptr;
     for(arg_ptr = proc_argv[0], is_not_first = false;
-            arg_ptr != NULL;
+            arg_ptr != nullptr;
             ++arg_ptr, is_not_first = true) {
         if(is_not_first) {
             ss << ", ";
@@ -338,10 +346,14 @@ void log_debug_execv(const char *app, char * const proc_argv[]) {
 
 void
 run_user_add(const string &user_name, const string &base_dir = Config::DEFAULT_BASE_DIR) {
+    BOOST_LOG_TRIVIAL(debug) << "run_user_add: " <<
+            VARIABLE_OUT(user_name) << ", " << VARIABLE_OUT(base_dir);
+
     pid_t pid = fork();
     if(pid < 0) {
         throw SubprocessException("Can't call fork().");
     } else if(pid == 0) {
+        BOOST_LOG_TRIVIAL(debug) << "In the subprocess.";
         string user_add_app = config.options.user_add_application;
         string app_filename = fs::path(user_add_app).filename(); // @suppress("Invalid arguments") // @suppress("Function cannot be resolved") // @suppress("Method cannot be resolved")
         vector<string> proc_argv_vector { app_filename };
@@ -354,7 +366,7 @@ run_user_add(const string &user_name, const string &base_dir = Config::DEFAULT_B
             proc_argv[i] = new char[char_count];
             std::strcpy(proc_argv[i], proc_argv_vector[i].c_str());
         }
-        proc_argv[arg_count] = NULL;
+        proc_argv[arg_count] = nullptr;
 
         log_debug_execv(user_add_app.c_str(), proc_argv);
         if(simulation_mode) {
@@ -365,6 +377,7 @@ run_user_add(const string &user_name, const string &base_dir = Config::DEFAULT_B
 
         _exit(EXIT_FAILURE);
     } else {
+        BOOST_LOG_TRIVIAL(debug) << "In the main process.";
         int wstatus;
         pid_t wait_pid = waitpid(pid, &wstatus, 0);
         if(WIFEXITED(wstatus) and WEXITSTATUS(wstatus) == EXIT_SUCCESS) {
@@ -392,7 +405,7 @@ get_config_section_by_user_name(const string &user_name)
             return &config.sections[config_section_idx];
         }
     }
-    return NULL;
+    return nullptr;
 }
 
 bool check_authentication(const User &user, const ConfigSection &config_section) {
@@ -422,7 +435,7 @@ bool add_user(const string &user_name) {
     }
     User current_user = User::get_current_user();
     const ConfigSection *config_section = get_config_section_by_user_name(user_name);
-    if(config_section == NULL) {
+    if(config_section == nullptr) {
         BOOST_LOG_TRIVIAL(error) << "Config section for username " << user_name << " not found.";
         return false;
     }
@@ -446,7 +459,7 @@ int main(int argc, char **argv) {
     po::options_description desc(_("Available options"));
     desc.add_options()
         ("help,h", _("Show help."))
-        ("add-user,a", po::value<std::string>(), _("Add user"))
+        ("add-user,a", po::value<string>(), _("Add user"))
         ("verbose,v", _("Verbose mode"))
         ("simulate,S", _("Simulation mode (doesn't do real work)"));
     po::variables_map vm;
@@ -479,7 +492,7 @@ int main(int argc, char **argv) {
     }
 
     if(vm.count("add-user")) {
-        std::string user_name = vm["add-user"].as<std::string>();
+        string user_name = vm["add-user"].as<string>();
         add_user(user_name);
     }
 
