@@ -327,18 +327,19 @@ user_add_options(const string &user_name, const string &base_dir)
 }
 
 void log_debug_execv(const char *app, char * const proc_argv[]) {
+    BOOST_LOG_TRIVIAL(debug) << "log_debug_execv";
     std::stringstream ss;
     ss << "Run application: " << string(app) << " with arguments: [";
 
     bool is_not_first;
-    const char * arg_ptr;
-    for(arg_ptr = proc_argv[0], is_not_first = false;
-            arg_ptr != nullptr;
+    char * const * arg_ptr;
+    for(arg_ptr = proc_argv, is_not_first = false;
+            *arg_ptr != nullptr;
             ++arg_ptr, is_not_first = true) {
         if(is_not_first) {
             ss << ", ";
         }
-        ss << string(arg_ptr);
+        ss << string(*arg_ptr);
     }
     ss << "]";
     BOOST_LOG_TRIVIAL(debug) << ss.str();
@@ -358,7 +359,23 @@ run_user_add(const string &user_name, const string &base_dir = Config::DEFAULT_B
         string app_filename = fs::path(user_add_app).filename(); // @suppress("Invalid arguments") // @suppress("Function cannot be resolved") // @suppress("Method cannot be resolved")
         vector<string> proc_argv_vector { app_filename };
         vector<string> app_options = user_add_options(user_name, base_dir);
+
         proc_argv_vector.insert(proc_argv_vector.end(), app_options.begin(), app_options.end());
+
+//        std::stringstream ss;
+//        ss << user_add_app << " [";
+//        bool is_first_arg = true;
+//        for(auto s : proc_argv_vector) {
+//            if(is_first_arg) {
+//                is_first_arg = false;
+//            } else {
+//                ss << ", ";
+//            }
+//            ss << s;
+//        }
+//        ss << "]";
+//        BOOST_LOG_TRIVIAL(debug) << "Preparing executing application with arguments: " << ss.str();
+
         size_t arg_count = proc_argv_vector.size();
         char *proc_argv[arg_count + 1];
         for(size_t i = 0; i < arg_count; ++i) {
@@ -371,8 +388,11 @@ run_user_add(const string &user_name, const string &base_dir = Config::DEFAULT_B
         log_debug_execv(user_add_app.c_str(), proc_argv);
         if(simulation_mode) {
             BOOST_LOG_TRIVIAL(info) << "Simulation mode. The user was not be created.";
+            _exit(EXIT_SUCCESS);
         } else {
+            BOOST_LOG_TRIVIAL(debug) << "Before execute the subprocess";
             execv(user_add_app.c_str(), proc_argv);
+            BOOST_LOG_TRIVIAL(debug) << "After executing the subprocess";
         }
 
         _exit(EXIT_FAILURE);
@@ -380,6 +400,7 @@ run_user_add(const string &user_name, const string &base_dir = Config::DEFAULT_B
         BOOST_LOG_TRIVIAL(debug) << "In the main process.";
         int wstatus;
         pid_t wait_pid = waitpid(pid, &wstatus, 0);
+        BOOST_LOG_TRIVIAL(debug) << "Subprocess with pid " << pid << " is done. " << VARIABLE_OUT(wait_pid);
         if(WIFEXITED(wstatus) and WEXITSTATUS(wstatus) == EXIT_SUCCESS) {
             BOOST_LOG_TRIVIAL(debug) <<
                     "Subprocess for user adding was exiting successfully."; // TODO check
@@ -459,6 +480,7 @@ int main(int argc, char **argv) {
     po::options_description desc(_("Available options"));
     desc.add_options()
         ("help,h", _("Show help."))
+        ("version,V", _("Show version."))
         ("add-user,a", po::value<string>(), _("Add user"))
         ("verbose,v", _("Verbose mode"))
         ("simulate,S", _("Simulation mode (doesn't do real work)"));
@@ -468,6 +490,11 @@ int main(int argc, char **argv) {
 
     if(vm.count("help")) {
         std::cout << desc << "\n";
+        return EXIT_SUCCESS;
+    }
+
+    if(vm.count("version")) {
+        std::cout << "Version: " << VERSION << std::endl;
         return EXIT_SUCCESS;
     }
 
