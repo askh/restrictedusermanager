@@ -116,7 +116,8 @@ restrictedusermanager_OBJECTS = $(am_restrictedusermanager_OBJECTS)
 am__DEPENDENCIES_1 =
 restrictedusermanager_DEPENDENCIES = $(am__DEPENDENCIES_1) \
 	$(am__DEPENDENCIES_1) $(am__DEPENDENCIES_1) \
-	$(am__DEPENDENCIES_1) $(am__DEPENDENCIES_1)
+	$(am__DEPENDENCIES_1) $(am__DEPENDENCIES_1) \
+	$(am__DEPENDENCIES_1)
 AM_V_lt = $(am__v_lt_@AM_V@)
 am__v_lt_ = $(am__v_lt_@AM_DEFAULT_V@)
 am__v_lt_0 = --silent
@@ -358,7 +359,7 @@ top_srcdir = @top_srcdir@
 restrictedusermanager_SOURCES = restrictedusermanager.cpp
 restrictedusermanager_CPPFLAGS = $(BOOST_CPPFLAGS) $(YAMLCPP_CPPFLAGS) -pthread -DBOOST_LOG_DYN_LINK
 # restrictedusermanager_LDFLAGS = $(BOOST_PROGRAM_OPTIONS_LDFLAGS) $(YAMLCPP_LIBS)
-restrictedusermanager_LDADD = $(BOOST_IOSTREAMS_LIBS) $(BOOST_LOG_LIBS) $(BOOST_LOG_SETUP_LIBS) $(BOOST_OPTIONAL_LIBS) $(BOOST_PROGRAM_OPTIONS_LIBS) $(YAMLCPP_LIBS) -lpthread
+restrictedusermanager_LDADD = $(BOOST_IOSTREAMS_LIBS) $(BOOST_LOG_LIBS) $(BOOST_LOG_SETUP_LIBS) $(BOOST_OPTIONAL_LIBS) $(BOOST_PROGRAM_OPTIONS_LIBS) $(BOOST_SYSTEM_LIBS) $(YAMLCPP_LIBS) -lpthread -lstdc++fs
 all: all-am
 
 .SUFFIXES:
