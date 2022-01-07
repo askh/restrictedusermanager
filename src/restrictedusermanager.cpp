@@ -133,24 +133,18 @@ private:
 };
 
 User User::get_current_user() {
-    char *user_name_str = getlogin();
-    if(user_name_str == nullptr) {
-        string error_message =
-            "No user login found. errno=" +
-            std::to_string(errno);
-        throw UserException(error_message);
-    }
-    string user_name(getlogin());
-    BOOST_LOG_TRIVIAL(debug) << "Current user: " << user_name;
+
     User result_user = User();
-    result_user.user = user_name;
     uid_t user_id = getuid();
     passwd *pwd = getpwuid(user_id);
     group *gr;
     if(pwd == nullptr) {
-        BOOST_LOG_TRIVIAL(error) << "User group not found";
+        BOOST_LOG_TRIVIAL(error) << "User not found";
         return result_user;
     }
+    result_user.user = pwd->pw_name;
+    BOOST_LOG_TRIVIAL(debug) << "Current user: " << result_user.user;
+
     gid_t group_id = pwd->pw_gid;
 
     int groups_status;
@@ -162,7 +156,7 @@ User User::get_current_user() {
         delete[] groups_arr;
         groups_arr = new gid_t[ngroups];
         groups_status =
-            getgrouplist(user_name.c_str(), group_id, groups_arr, &ngroups);
+            getgrouplist(result_user.user.c_str(), group_id, groups_arr, &ngroups);
         BOOST_LOG_TRIVIAL(debug) << "After:" << VARIABLE_OUT(ngroups) << ", " << VARIABLE_OUT(groups_status);
     } while(groups_status == -1);
     set<gid_t> group_ids(groups_arr, groups_arr + ngroups);
@@ -379,7 +373,7 @@ run_user_add(const string &user_name, const string &base_dir = Config::DEFAULT_B
         size_t arg_count = proc_argv_vector.size();
         char *proc_argv[arg_count + 1];
         for(size_t i = 0; i < arg_count; ++i) {
-            size_t char_count = proc_argv_vector[i].length();
+            size_t char_count = proc_argv_vector[i].length() + 1;
             proc_argv[i] = new char[char_count];
             std::strcpy(proc_argv[i], proc_argv_vector[i].c_str());
         }
@@ -453,6 +447,7 @@ bool add_user(const string &user_name) {
     BOOST_LOG_TRIVIAL(debug) << "Add user " << user_name;
     if(!is_valid_user_name(user_name)) {
         BOOST_LOG_TRIVIAL(error) << "The username " << user_name << " is not valid.";
+        return false;
     }
     User current_user = User::get_current_user();
     const ConfigSection *config_section = get_config_section_by_user_name(user_name);
@@ -465,7 +460,7 @@ bool add_user(const string &user_name) {
         return false;
     }
     try {
-        run_user_add(user_name);
+        run_user_add(user_name, config_section->base_dir);
     } catch(const SubprocessException &e) {
         BOOST_LOG_TRIVIAL(error) << "User was not be created by the reason: " << e.what();
         return false;
