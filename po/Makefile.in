@@ -11,7 +11,7 @@
 GETTEXT_MACRO_VERSION = 0.20
 
 PACKAGE = restrictedusermanager
-VERSION = 0.1
+VERSION = 0.2
 PACKAGE_BUGREPORT = askh@askh.ru
 
 SED = /usr/bin/sed
@@ -209,7 +209,7 @@ $(DOMAIN).pot-update: $(POTFILES) $(srcdir)/POTFILES.in remove-potcdate.sed
 	      --files-from=$(srcdir)/POTFILES.in \
 	      --copyright-holder='$(COPYRIGHT_HOLDER)' \
 	      --package-name="$${package_prefix}restrictedusermanager" \
-	      --package-version='0.1' \
+	      --package-version='0.2' \
 	      --msgid-bugs-address="$$msgid_bugs_address" \
 	      $(XGETTEXT_OPTIONS)  \
 	    ;; \

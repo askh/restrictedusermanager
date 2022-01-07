@@ -362,20 +362,6 @@ run_user_add(const string &user_name,
         proc_argv_vector.insert(proc_argv_vector.end(),
                                 app_options.begin(), app_options.end());
 
-//        std::stringstream ss;
-//        ss << user_add_app << " [";
-//        bool is_first_arg = true;
-//        for(auto s : proc_argv_vector) {
-//            if(is_first_arg) {
-//                is_first_arg = false;
-//            } else {
-//                ss << ", ";
-//            }
-//            ss << s;
-//        }
-//        ss << "]";
-//        BOOST_LOG_TRIVIAL(debug) << "Preparing executing application with arguments: " << ss.str();
-
         size_t arg_count = proc_argv_vector.size();
         char *proc_argv[arg_count + 1];
         for(size_t i = 0; i < arg_count; ++i) {
@@ -510,6 +496,11 @@ int main(int argc, char **argv) {
         logging::core::get()->set_filter // @suppress("Invalid arguments")
         (
             logging::trivial::severity >= logging::trivial::debug // @suppress("Symbol is not resolved")
+        );
+    } else {
+        logging::core::get()->set_filter // @suppress("Invalid arguments")
+        (
+            logging::trivial::severity >= logging::trivial::info // @suppress("Symbol is not resolved")
         );
     }
     if(!vm.count("simulate")) {
