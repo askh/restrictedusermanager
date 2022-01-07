@@ -1,6 +1,6 @@
 options:
     user_add:
-        application: /usr/bin/useradd
+        application: /usr/sbin/useradd
 defaults:
     max_name_length: 25
     base_dir: /home

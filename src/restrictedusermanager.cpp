@@ -317,7 +317,7 @@ is_valid_user_name(const string &user_name)
 vector<string>
 user_add_options(const string &user_name, const string &base_dir)
 {
-    return vector<string> { "-b", base_dir, user_name };
+    return vector<string> { "-b", base_dir, "-m", user_name };
 }
 
 void log_debug_execv(const char *app, char * const proc_argv[]) {
