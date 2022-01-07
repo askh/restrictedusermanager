@@ -120,13 +120,13 @@ public:
     inline static const string CONFIG_ADMINISTRATORS = "administrators";
     inline static const string CONFIG_USERS = "users";
     inline static const string CONFIG_GROUPS = "groups";
-    inline static const string CONFIG_NAME_PREFIX = "name_prefox";
+    inline static const string CONFIG_NAME_PREFIX = "name_prefix";
     inline static const string CONFIG_BASE_DIR = "base_dir";
     inline static const string CONFIG_MAX_NAME_LENGTH = "max_name_length";
     inline static const int DEFAULT_MAX_NAME_LENGTH = 25;
     inline static const string DEFAULT_BASE_DIR = "/home";
     inline static const string DEFAULT_NAME_PREFIX = "";
-    inline static const string DEFAULT_USER_ADD_APPLICATION = "/usr/bin/useradd";
+    inline static const string DEFAULT_USER_ADD_APPLICATION = "/usr/sbin/useradd";
 private:
     ConfigSection
     parse_config_section (const YAML::Node &node, bool parse_defaults = false);
@@ -157,7 +157,8 @@ User User::get_current_user() {
         groups_arr = new gid_t[ngroups];
         groups_status =
             getgrouplist(result_user.user.c_str(), group_id, groups_arr, &ngroups);
-        BOOST_LOG_TRIVIAL(debug) << "After:" << VARIABLE_OUT(ngroups) << ", " << VARIABLE_OUT(groups_status);
+        BOOST_LOG_TRIVIAL(debug) << "After:" << VARIABLE_OUT(ngroups) << ", "
+                << VARIABLE_OUT(groups_status);
     } while(groups_status == -1);
     set<gid_t> group_ids(groups_arr, groups_arr + ngroups);
     delete[] groups_arr;
@@ -167,6 +168,7 @@ User User::get_current_user() {
 
         gr = getgrgid(*gr_iter);
         if(gr != nullptr) {
+            BOOST_LOG_TRIVIAL(debug) << "User in group: " << gr->gr_name;
             result_user.groups.insert(gr->gr_name);
         }
     }
@@ -198,7 +200,8 @@ Config::Config(const YAML::Node &node) {
 
     if(node[CONFIG_CONFIGS]) {
         YAML::Node configs = node[CONFIG_CONFIGS];
-        for(YAML::const_iterator iter = configs.begin(); iter != configs.end(); ++iter) {
+        for(YAML::const_iterator iter = configs.begin();
+                iter != configs.end(); ++iter) {
             this->sections.push_back(parse_config_section(*iter));
         }
     }
@@ -309,8 +312,9 @@ void set_config(const YAML::Node &node) {
 }
 
 bool
-is_valid_user_name(const string &user_name)
+is_valid_user_name(const string &user_name, const ConfigSection &section)
 {
+    if(section.max_name_length > 0 && user_name.length() > section.max_name_length) { return false; }
     return regex_match(user_name, RE_USER_NAME);
 }
 
@@ -340,7 +344,8 @@ void log_debug_execv(const char *app, char * const proc_argv[]) {
 }
 
 void
-run_user_add(const string &user_name, const string &base_dir = Config::DEFAULT_BASE_DIR) {
+run_user_add(const string &user_name,
+             const string &base_dir = Config::DEFAULT_BASE_DIR) {
     BOOST_LOG_TRIVIAL(debug) << "run_user_add: " <<
             VARIABLE_OUT(user_name) << ", " << VARIABLE_OUT(base_dir);
 
@@ -354,7 +359,8 @@ run_user_add(const string &user_name, const string &base_dir = Config::DEFAULT_B
         vector<string> proc_argv_vector { app_filename };
         vector<string> app_options = user_add_options(user_name, base_dir);
 
-        proc_argv_vector.insert(proc_argv_vector.end(), app_options.begin(), app_options.end());
+        proc_argv_vector.insert(proc_argv_vector.end(),
+                                app_options.begin(), app_options.end());
 
 //        std::stringstream ss;
 //        ss << user_add_app << " [";
@@ -394,7 +400,8 @@ run_user_add(const string &user_name, const string &base_dir = Config::DEFAULT_B
         BOOST_LOG_TRIVIAL(debug) << "In the main process.";
         int wstatus;
         pid_t wait_pid = waitpid(pid, &wstatus, 0);
-        BOOST_LOG_TRIVIAL(debug) << "Subprocess with pid " << pid << " is done. " << VARIABLE_OUT(wait_pid);
+        BOOST_LOG_TRIVIAL(debug) << "Subprocess with pid " << pid <<
+                " is done. " << VARIABLE_OUT(wait_pid);
         if(WIFEXITED(wstatus) and WEXITSTATUS(wstatus) == EXIT_SUCCESS) {
             BOOST_LOG_TRIVIAL(debug) <<
                     "Subprocess for user adding was exiting successfully."; // TODO check
@@ -445,24 +452,29 @@ bool check_authentication(const User &user, const ConfigSection &config_section)
 
 bool add_user(const string &user_name) {
     BOOST_LOG_TRIVIAL(debug) << "Add user " << user_name;
-    if(!is_valid_user_name(user_name)) {
-        BOOST_LOG_TRIVIAL(error) << "The username " << user_name << " is not valid.";
+    User current_user = User::get_current_user();
+    const ConfigSection *config_section =
+            get_config_section_by_user_name(user_name);
+    if(config_section == nullptr) {
+        BOOST_LOG_TRIVIAL(error) << "Config section for username " <<
+                user_name << " not found.";
         return false;
     }
-    User current_user = User::get_current_user();
-    const ConfigSection *config_section = get_config_section_by_user_name(user_name);
-    if(config_section == nullptr) {
-        BOOST_LOG_TRIVIAL(error) << "Config section for username " << user_name << " not found.";
+    if(!is_valid_user_name(user_name, *config_section)) {
+        BOOST_LOG_TRIVIAL(error) << "The username " << user_name <<
+                " is not valid.";
         return false;
     }
     if(!check_authentication(current_user, *config_section)) {
-        BOOST_LOG_TRIVIAL(error) << "Access denied for creating the user " << user_name << ".";
+        BOOST_LOG_TRIVIAL(error) << "Access denied for creating the user " <<
+                user_name << ".";
         return false;
     }
     try {
         run_user_add(user_name, config_section->base_dir);
     } catch(const SubprocessException &e) {
-        BOOST_LOG_TRIVIAL(error) << "User was not be created by the reason: " << e.what();
+        BOOST_LOG_TRIVIAL(error) <<
+                "User was not be created by the reason: " << e.what();
         return false;
     }
     return true;
@@ -476,7 +488,8 @@ int main(int argc, char **argv) {
     desc.add_options()
         ("help,h", _("Show help."))
         ("version,V", _("Show version."))
-        ("add-user,a", po::value<string>(), _("Add user"))
+        ("add-user,a", po::value<string>()->value_name("USER_NAME"),
+                _("Add user"))
         ("verbose,v", _("Verbose mode"))
         ("simulate,S", _("Simulation mode (doesn't do real work)"));
     po::variables_map vm;
@@ -507,7 +520,8 @@ int main(int argc, char **argv) {
     boost::optional<YAML::Node> config_node = load_config();
 
     if(!config_node) {
-        BOOST_LOG_TRIVIAL(error) << "Config file not available. Nothing has been done.";
+        BOOST_LOG_TRIVIAL(error) <<
+                "Config file not available. Nothing has been done.";
         return EXIT_FAILURE;
     } else {
         set_config(*config_node);

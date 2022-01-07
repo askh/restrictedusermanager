@@ -2,7 +2,7 @@
 # Process this file with autoconf to produce a configure script.
 
 AC_PREREQ([2.69])
-AC_INIT([restrictedusermanager], [0.0], [askh@askh.ru])
+AC_INIT([restrictedusermanager], [0.1], [askh@askh.ru])
 AC_CONFIG_AUX_DIR([build-aux])
 AM_INIT_AUTOMAKE
 AC_CONFIG_SRCDIR([src/restrictedusermanager.cpp])

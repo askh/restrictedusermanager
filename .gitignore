@@ -12,5 +12,6 @@
 /stamp-h1
 .deps
 .libs
+/core
 Makefile
 /src/restrictedusermanager
